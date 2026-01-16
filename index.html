@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Classic Pac-Man - Fixed Collisions</title>
+    <title>Classic Pac-Man - Fixed Ghosts & Pellets</title>
     <style>
         * {
             margin: 0;
@@ -456,7 +456,9 @@
                 color: '#F00',
                 frightened: false,
                 frightenedTimer: 0,
-                mode: 'chase'
+                mode: 'chase',
+                moveTimer: 0,
+                moveInterval: 10 // Move every 10 frames
             },
             { // Pinky (pink)
                 x: 8 * 40 + 20,
@@ -467,7 +469,9 @@
                 color: '#F0F',
                 frightened: false,
                 frightenedTimer: 0,
-                mode: 'chase'
+                mode: 'chase',
+                moveTimer: 0,
+                moveInterval: 12
             },
             { // Inky (cyan)
                 x: 9 * 40 + 20,
@@ -478,7 +482,9 @@
                 color: '#0FF',
                 frightened: false,
                 frightenedTimer: 0,
-                mode: 'chase'
+                mode: 'chase',
+                moveTimer: 0,
+                moveInterval: 14
             },
             { // Clyde (orange)
                 x: 10 * 40 + 20,
@@ -489,7 +495,9 @@
                 color: '#FF9900',
                 frightened: false,
                 frightenedTimer: 0,
-                mode: 'chase'
+                mode: 'chase',
+                moveTimer: 0,
+                moveInterval: 16
             }
         ];
         
@@ -514,27 +522,36 @@
             pacman.y = 15 * cellSize + 20;
             pacman.direction = 0;
             pacman.nextDirection = 0;
+            pacman.speed = 4;
             
             // Reset ghosts
             ghosts[0].x = 9 * cellSize + 20;
             ghosts[0].y = 8 * cellSize + 20;
             ghosts[0].frightened = false;
             ghosts[0].frightenedTimer = 0;
+            ghosts[0].speed = 3;
+            ghosts[0].moveTimer = 0;
             
             ghosts[1].x = 8 * cellSize + 20;
             ghosts[1].y = 9 * cellSize + 20;
             ghosts[1].frightened = false;
             ghosts[1].frightenedTimer = 0;
+            ghosts[1].speed = 2.8;
+            ghosts[1].moveTimer = 0;
             
             ghosts[2].x = 9 * cellSize + 20;
             ghosts[2].y = 9 * cellSize + 20;
             ghosts[2].frightened = false;
             ghosts[2].frightenedTimer = 0;
+            ghosts[2].speed = 2.6;
+            ghosts[2].moveTimer = 0;
             
             ghosts[3].x = 10 * cellSize + 20;
             ghosts[3].y = 9 * cellSize + 20;
             ghosts[3].frightened = false;
             ghosts[3].frightenedTimer = 0;
+            ghosts[3].speed = 2.4;
+            ghosts[3].moveTimer = 0;
             
             // Create pellets
             createPellets();
@@ -767,8 +784,8 @@
             }
         }
         
-        // NEW IMPROVED COLLISION DETECTION
-        function checkWallCollision(x, y, radius, direction = null) {
+        // Improved collision detection
+        function checkWallCollision(x, y, radius) {
             // Get the grid cell for the center position
             const gridX = Math.floor(x / cellSize);
             const gridY = Math.floor(y / cellSize);
@@ -797,54 +814,26 @@
                 }
             }
             
-            // Additional check for directional movement to prevent "hugging" walls
-            if (direction !== null) {
-                let checkX = x;
-                let checkY = y;
-                
-                // Check a point slightly ahead in the direction of movement
-                switch(direction) {
-                    case 0: checkX += radius; break; // Right
-                    case 1: checkY += radius; break; // Down
-                    case 2: checkX -= radius; break; // Left
-                    case 3: checkY -= radius; break; // Up
-                }
-                
-                const aheadGridX = Math.floor(checkX / cellSize);
-                const aheadGridY = Math.floor(checkY / cellSize);
-                
-                if (aheadGridY >= 0 && aheadGridY < maze.length && 
-                    aheadGridX >= 0 && aheadGridX < maze[0].length) {
-                    if (maze[aheadGridY][aheadGridX] === 1) {
-                        return true;
-                    }
-                }
-            }
-            
             return false;
         }
         
-        // NEW: Check if a specific direction is clear
+        // Check if a specific direction is clear
         function canMoveInDirection(x, y, radius, direction) {
             let testX = x;
             let testY = y;
             
             switch(direction) {
-                case 0: testX += pacman.speed; break; // Right
-                case 1: testY += pacman.speed; break; // Down
-                case 2: testX -= pacman.speed; break; // Left
-                case 3: testY -= pacman.speed; break; // Up
+                case 0: testX += 2; break; // Right
+                case 1: testY += 2; break; // Down
+                case 2: testX -= 2; break; // Left
+                case 3: testY -= 2; break; // Up
             }
             
-            return !checkWallCollision(testX, testY, radius, direction);
+            return !checkWallCollision(testX, testY, radius);
         }
         
         // Move Pac-Man with improved collision handling
         function movePacman() {
-            // Store current position
-            const oldX = pacman.x;
-            const oldY = pacman.y;
-            
             // Try to change to next direction if it's different
             if (pacman.nextDirection !== pacman.direction) {
                 if (canMoveInDirection(pacman.x, pacman.y, pacman.radius, pacman.nextDirection)) {
@@ -864,47 +853,9 @@
             }
             
             // Check if movement in current direction is valid
-            if (canMoveInDirection(pacman.x, pacman.y, pacman.radius, pacman.direction)) {
+            if (!checkWallCollision(newX, newY, pacman.radius)) {
                 pacman.x = newX;
                 pacman.y = newY;
-            } else {
-                // If we can't move, try to "slide" along the wall by checking perpendicular directions
-                // This helps prevent getting stuck when moving diagonally into corners
-                let slideX = pacman.x;
-                let slideY = pacman.y;
-                let moved = false;
-                
-                // Try horizontal movement if we're trying to move vertically
-                if (pacman.direction === 1 || pacman.direction === 3) {
-                    // Try right
-                    if (canMoveInDirection(pacman.x, pacman.y, pacman.radius, 0)) {
-                        slideX += pacman.speed;
-                        moved = true;
-                    } 
-                    // Try left
-                    else if (canMoveInDirection(pacman.x, pacman.y, pacman.radius, 2)) {
-                        slideX -= pacman.speed;
-                        moved = true;
-                    }
-                } 
-                // Try vertical movement if we're trying to move horizontally
-                else if (pacman.direction === 0 || pacman.direction === 2) {
-                    // Try down
-                    if (canMoveInDirection(pacman.x, pacman.y, pacman.radius, 1)) {
-                        slideY += pacman.speed;
-                        moved = true;
-                    } 
-                    // Try up
-                    else if (canMoveInDirection(pacman.x, pacman.y, pacman.radius, 3)) {
-                        slideY -= pacman.speed;
-                        moved = true;
-                    }
-                }
-                
-                if (moved && !checkWallCollision(slideX, slideY, pacman.radius)) {
-                    pacman.x = slideX;
-                    pacman.y = slideY;
-                }
             }
             
             // Handle tunnel/wrap-around
@@ -915,7 +866,7 @@
             }
         }
         
-        // Move ghosts with improved collision
+        // FIXED: Move ghosts with proper timing
         function moveGhosts() {
             ghosts.forEach(ghost => {
                 // Update frightened timer
@@ -926,50 +877,56 @@
                     }
                 }
                 
-                // Store old position
-                const oldX = ghost.x;
-                const oldY = ghost.y;
+                // Increment move timer
+                ghost.moveTimer++;
                 
-                // Calculate new position
-                let newX = ghost.x;
-                let newY = ghost.y;
-                
-                switch(ghost.direction) {
-                    case 0: newX += ghost.speed; break;
-                    case 1: newY += ghost.speed; break;
-                    case 2: newX -= ghost.speed; break;
-                    case 3: newY -= ghost.speed; break;
-                }
-                
-                // Check if movement is valid
-                if (!checkWallCollision(newX, newY, ghost.radius, ghost.direction)) {
-                    ghost.x = newX;
-                    ghost.y = newY;
-                } else {
-                    // If can't move, change direction randomly
-                    const directions = [0, 1, 2, 3];
-                    // Remove opposite direction to prevent 180 turns
-                    const oppositeDir = (ghost.direction + 2) % 4;
-                    const validDirections = directions.filter(dir => dir !== oppositeDir);
+                // Only move when timer reaches interval
+                if (ghost.moveTimer >= ghost.moveInterval) {
+                    ghost.moveTimer = 0;
                     
-                    // Try random directions until one works
-                    for (let i = 0; i < 10; i++) { // Limit attempts
-                        const randomDir = validDirections[Math.floor(Math.random() * validDirections.length)];
-                        let testX = ghost.x;
-                        let testY = ghost.y;
+                    // Store old position
+                    const oldX = ghost.x;
+                    const oldY = ghost.y;
+                    
+                    // Calculate new position based on direction
+                    let newX = ghost.x;
+                    let newY = ghost.y;
+                    
+                    switch(ghost.direction) {
+                        case 0: newX += ghost.speed; break;
+                        case 1: newY += ghost.speed; break;
+                        case 2: newX -= ghost.speed; break;
+                        case 3: newY -= ghost.speed; break;
+                    }
+                    
+                    // Check if movement is valid
+                    if (!checkWallCollision(newX, newY, ghost.radius)) {
+                        ghost.x = newX;
+                        ghost.y = newY;
+                    } else {
+                        // If can't move, change direction
+                        const directions = [0, 1, 2, 3];
+                        // Shuffle directions
+                        directions.sort(() => Math.random() - 0.5);
                         
-                        switch(randomDir) {
-                            case 0: testX += ghost.speed; break;
-                            case 1: testY += ghost.speed; break;
-                            case 2: testX -= ghost.speed; break;
-                            case 3: testY -= ghost.speed; break;
-                        }
-                        
-                        if (!checkWallCollision(testX, testY, ghost.radius, randomDir)) {
-                            ghost.direction = randomDir;
-                            ghost.x = testX;
-                            ghost.y = testY;
-                            break;
+                        // Try each direction until one works
+                        for (let dir of directions) {
+                            newX = ghost.x;
+                            newY = ghost.y;
+                            
+                            switch(dir) {
+                                case 0: newX += ghost.speed; break;
+                                case 1: newY += ghost.speed; break;
+                                case 2: newX -= ghost.speed; break;
+                                case 3: newY -= ghost.speed; break;
+                            }
+                            
+                            if (!checkWallCollision(newX, newY, ghost.radius)) {
+                                ghost.direction = dir;
+                                ghost.x = newX;
+                                ghost.y = newY;
+                                break;
+                            }
                         }
                     }
                 }
@@ -1087,6 +1044,23 @@
                         pacman.direction = 0;
                         pacman.nextDirection = 0;
                         
+                        // Reset ghosts
+                        ghosts[0].x = 9 * cellSize + 20;
+                        ghosts[0].y = 8 * cellSize + 20;
+                        ghosts[0].frightened = false;
+                        
+                        ghosts[1].x = 8 * cellSize + 20;
+                        ghosts[1].y = 9 * cellSize + 20;
+                        ghosts[1].frightened = false;
+                        
+                        ghosts[2].x = 9 * cellSize + 20;
+                        ghosts[2].y = 9 * cellSize + 20;
+                        ghosts[2].frightened = false;
+                        
+                        ghosts[3].x = 10 * cellSize + 20;
+                        ghosts[3].y = 9 * cellSize + 20;
+                        ghosts[3].frightened = false;
+                        
                         if (soundEnabled) {
                             // Play death sound
                             playSound('death');
@@ -1101,37 +1075,41 @@
             });
         }
         
-        // Level up
+        // FIXED: Level up function with proper pellet respawn
         function levelUp() {
             level++;
             updateDisplay();
-            
-            // Reset pellets
-            createPellets();
             
             // Reset positions
             pacman.x = 9 * cellSize + 20;
             pacman.y = 15 * cellSize + 20;
             pacman.direction = 0;
             pacman.nextDirection = 0;
+            pacman.speed += 0.5; // Make Pac-Man slightly faster each level
             
             // Reset ghosts
             ghosts[0].x = 9 * cellSize + 20;
             ghosts[0].y = 8 * cellSize + 20;
+            ghosts[0].frightened = false;
+            ghosts[0].speed += 0.3;
             
             ghosts[1].x = 8 * cellSize + 20;
             ghosts[1].y = 9 * cellSize + 20;
+            ghosts[1].frightened = false;
+            ghosts[1].speed += 0.3;
             
             ghosts[2].x = 9 * cellSize + 20;
             ghosts[2].y = 9 * cellSize + 20;
+            ghosts[2].frightened = false;
+            ghosts[2].speed += 0.3;
             
             ghosts[3].x = 10 * cellSize + 20;
             ghosts[3].y = 9 * cellSize + 20;
+            ghosts[3].frightened = false;
+            ghosts[3].speed += 0.3;
             
-            // Increase ghost speed slightly
-            ghosts.forEach(ghost => {
-                ghost.speed += 0.2;
-            });
+            // RESET ALL PELLETS - This was the main fix!
+            createPellets();
         }
         
         // Game over
