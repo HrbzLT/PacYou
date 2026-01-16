@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Classic Pac-Man</title>
+    <title>Classic Pac-Man - Fixed Collisions</title>
     <style>
         * {
             margin: 0;
@@ -767,100 +767,144 @@
             }
         }
         
-        // Check collision with walls
-        function checkWallCollision(x, y, radius) {
-            // Convert position to grid coordinates
+        // NEW IMPROVED COLLISION DETECTION
+        function checkWallCollision(x, y, radius, direction = null) {
+            // Get the grid cell for the center position
             const gridX = Math.floor(x / cellSize);
             const gridY = Math.floor(y / cellSize);
             
-            // Check if the position is within the maze bounds
-            if (gridY < 0 || gridY >= maze.length || gridX < 0 || gridX >= maze[0].length) {
-                return true;
+            // Check all 4 corners of the circle
+            const checkPoints = [
+                {x: x - radius, y: y - radius}, // Top-left
+                {x: x + radius, y: y - radius}, // Top-right
+                {x: x - radius, y: y + radius}, // Bottom-left
+                {x: x + radius, y: y + radius}  // Bottom-right
+            ];
+            
+            for (let point of checkPoints) {
+                const pointGridX = Math.floor(point.x / cellSize);
+                const pointGridY = Math.floor(point.y / cellSize);
+                
+                // Check bounds
+                if (pointGridY < 0 || pointGridY >= maze.length || 
+                    pointGridX < 0 || pointGridX >= maze[0].length) {
+                    continue; // Skip points outside the maze (for tunnel areas)
+                }
+                
+                // If any corner touches a wall, there's a collision
+                if (maze[pointGridY][pointGridX] === 1) {
+                    return true;
+                }
             }
             
-            // Check if the cell is a wall
-            if (maze[gridY][gridX] === 1) {
-                return true;
-            }
-            
-            // Check for collisions with the edges of walls
-            const offsetX = x % cellSize;
-            const offsetY = y % cellSize;
-            
-            // Check top edge
-            if (offsetY < radius && gridY > 0 && maze[gridY-1][gridX] === 1) {
-                return true;
-            }
-            
-            // Check bottom edge
-            if (offsetY > cellSize - radius && gridY < maze.length - 1 && maze[gridY+1][gridX] === 1) {
-                return true;
-            }
-            
-            // Check left edge
-            if (offsetX < radius && gridX > 0 && maze[gridY][gridX-1] === 1) {
-                return true;
-            }
-            
-            // Check right edge
-            if (offsetX > cellSize - radius && gridX < maze[0].length - 1 && maze[gridY][gridX+1] === 1) {
-                return true;
+            // Additional check for directional movement to prevent "hugging" walls
+            if (direction !== null) {
+                let checkX = x;
+                let checkY = y;
+                
+                // Check a point slightly ahead in the direction of movement
+                switch(direction) {
+                    case 0: checkX += radius; break; // Right
+                    case 1: checkY += radius; break; // Down
+                    case 2: checkX -= radius; break; // Left
+                    case 3: checkY -= radius; break; // Up
+                }
+                
+                const aheadGridX = Math.floor(checkX / cellSize);
+                const aheadGridY = Math.floor(checkY / cellSize);
+                
+                if (aheadGridY >= 0 && aheadGridY < maze.length && 
+                    aheadGridX >= 0 && aheadGridX < maze[0].length) {
+                    if (maze[aheadGridY][aheadGridX] === 1) {
+                        return true;
+                    }
+                }
             }
             
             return false;
         }
         
-        // Move Pac-Man
+        // NEW: Check if a specific direction is clear
+        function canMoveInDirection(x, y, radius, direction) {
+            let testX = x;
+            let testY = y;
+            
+            switch(direction) {
+                case 0: testX += pacman.speed; break; // Right
+                case 1: testY += pacman.speed; break; // Down
+                case 2: testX -= pacman.speed; break; // Left
+                case 3: testY -= pacman.speed; break; // Up
+            }
+            
+            return !checkWallCollision(testX, testY, radius, direction);
+        }
+        
+        // Move Pac-Man with improved collision handling
         function movePacman() {
-            // Try to change direction if nextDirection is set
+            // Store current position
+            const oldX = pacman.x;
+            const oldY = pacman.y;
+            
+            // Try to change to next direction if it's different
             if (pacman.nextDirection !== pacman.direction) {
-                let testX = pacman.x;
-                let testY = pacman.y;
-                
-                switch(pacman.nextDirection) {
-                    case 0: // Right
-                        testX += pacman.speed;
-                        break;
-                    case 1: // Down
-                        testY += pacman.speed;
-                        break;
-                    case 2: // Left
-                        testX -= pacman.speed;
-                        break;
-                    case 3: // Up
-                        testY -= pacman.speed;
-                        break;
-                }
-                
-                // If no wall collision, change direction
-                if (!checkWallCollision(testX, testY, pacman.radius)) {
+                if (canMoveInDirection(pacman.x, pacman.y, pacman.radius, pacman.nextDirection)) {
                     pacman.direction = pacman.nextDirection;
                 }
             }
             
-            // Move in current direction
+            // Calculate new position based on current direction
             let newX = pacman.x;
             let newY = pacman.y;
             
             switch(pacman.direction) {
-                case 0: // Right
-                    newX += pacman.speed;
-                    break;
-                case 1: // Down
-                    newY += pacman.speed;
-                    break;
-                case 2: // Left
-                    newX -= pacman.speed;
-                    break;
-                case 3: // Up
-                    newY -= pacman.speed;
-                    break;
+                case 0: newX += pacman.speed; break; // Right
+                case 1: newY += pacman.speed; break; // Down
+                case 2: newX -= pacman.speed; break; // Left
+                case 3: newY -= pacman.speed; break; // Up
             }
             
-            // Check for wall collision
-            if (!checkWallCollision(newX, newY, pacman.radius)) {
+            // Check if movement in current direction is valid
+            if (canMoveInDirection(pacman.x, pacman.y, pacman.radius, pacman.direction)) {
                 pacman.x = newX;
                 pacman.y = newY;
+            } else {
+                // If we can't move, try to "slide" along the wall by checking perpendicular directions
+                // This helps prevent getting stuck when moving diagonally into corners
+                let slideX = pacman.x;
+                let slideY = pacman.y;
+                let moved = false;
+                
+                // Try horizontal movement if we're trying to move vertically
+                if (pacman.direction === 1 || pacman.direction === 3) {
+                    // Try right
+                    if (canMoveInDirection(pacman.x, pacman.y, pacman.radius, 0)) {
+                        slideX += pacman.speed;
+                        moved = true;
+                    } 
+                    // Try left
+                    else if (canMoveInDirection(pacman.x, pacman.y, pacman.radius, 2)) {
+                        slideX -= pacman.speed;
+                        moved = true;
+                    }
+                } 
+                // Try vertical movement if we're trying to move horizontally
+                else if (pacman.direction === 0 || pacman.direction === 2) {
+                    // Try down
+                    if (canMoveInDirection(pacman.x, pacman.y, pacman.radius, 1)) {
+                        slideY += pacman.speed;
+                        moved = true;
+                    } 
+                    // Try up
+                    else if (canMoveInDirection(pacman.x, pacman.y, pacman.radius, 3)) {
+                        slideY -= pacman.speed;
+                        moved = true;
+                    }
+                }
+                
+                if (moved && !checkWallCollision(slideX, slideY, pacman.radius)) {
+                    pacman.x = slideX;
+                    pacman.y = slideY;
+                }
             }
             
             // Handle tunnel/wrap-around
@@ -871,7 +915,7 @@
             }
         }
         
-        // Move ghosts
+        // Move ghosts with improved collision
         function moveGhosts() {
             ghosts.forEach(ghost => {
                 // Update frightened timer
@@ -882,19 +926,14 @@
                     }
                 }
                 
-                // Simple ghost movement - random direction changes
-                let directions = [0, 1, 2, 3];
+                // Store old position
+                const oldX = ghost.x;
+                const oldY = ghost.y;
                 
-                // Remove opposite direction to prevent 180-degree turns
-                const oppositeDir = (ghost.direction + 2) % 4;
-                directions = directions.filter(dir => dir !== oppositeDir);
-                
-                // Try to move in current direction first
+                // Calculate new position
                 let newX = ghost.x;
                 let newY = ghost.y;
-                let moved = false;
                 
-                // Check if current direction is valid
                 switch(ghost.direction) {
                     case 0: newX += ghost.speed; break;
                     case 1: newY += ghost.speed; break;
@@ -902,32 +941,34 @@
                     case 3: newY -= ghost.speed; break;
                 }
                 
-                if (!checkWallCollision(newX, newY, ghost.radius)) {
+                // Check if movement is valid
+                if (!checkWallCollision(newX, newY, ghost.radius, ghost.direction)) {
                     ghost.x = newX;
                     ghost.y = newY;
-                    moved = true;
-                }
-                
-                // If couldn't move in current direction, try a random new direction
-                if (!moved) {
-                    // Shuffle directions
-                    directions.sort(() => Math.random() - 0.5);
+                } else {
+                    // If can't move, change direction randomly
+                    const directions = [0, 1, 2, 3];
+                    // Remove opposite direction to prevent 180 turns
+                    const oppositeDir = (ghost.direction + 2) % 4;
+                    const validDirections = directions.filter(dir => dir !== oppositeDir);
                     
-                    for (let dir of directions) {
-                        newX = ghost.x;
-                        newY = ghost.y;
+                    // Try random directions until one works
+                    for (let i = 0; i < 10; i++) { // Limit attempts
+                        const randomDir = validDirections[Math.floor(Math.random() * validDirections.length)];
+                        let testX = ghost.x;
+                        let testY = ghost.y;
                         
-                        switch(dir) {
-                            case 0: newX += ghost.speed; break;
-                            case 1: newY += ghost.speed; break;
-                            case 2: newX -= ghost.speed; break;
-                            case 3: newY -= ghost.speed; break;
+                        switch(randomDir) {
+                            case 0: testX += ghost.speed; break;
+                            case 1: testY += ghost.speed; break;
+                            case 2: testX -= ghost.speed; break;
+                            case 3: testY -= ghost.speed; break;
                         }
                         
-                        if (!checkWallCollision(newX, newY, ghost.radius)) {
-                            ghost.x = newX;
-                            ghost.y = newY;
-                            ghost.direction = dir;
+                        if (!checkWallCollision(testX, testY, ghost.radius, randomDir)) {
+                            ghost.direction = randomDir;
+                            ghost.x = testX;
+                            ghost.y = testY;
                             break;
                         }
                     }
